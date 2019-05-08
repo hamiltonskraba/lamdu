@@ -57,11 +57,11 @@ class (Monad m, Monad (IM m)) => MonadNaming m where
     type IM m :: * -> *
     opRun :: m (m a -> IM m a)
 
-    opWithName :: Sugar.VarInfo -> NameType -> CPSNameConvertor m
-    opGetName :: Maybe Disambiguator -> NameType -> NameConvertor m
+    opWithName :: HasCallStack => Sugar.VarInfo -> NameType -> CPSNameConvertor m
+    opGetName :: HasCallStack => Maybe Disambiguator -> NameType -> NameConvertor m
 
 toParamRef ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     ParamRef (OldName m) o ->
     m (ParamRef (NewName m) o)
 toParamRef = (pNameRef . nrName) (opGetName Nothing TaggedVar)
@@ -71,7 +71,7 @@ binderVarType GetLet = TaggedVar
 binderVarType (GetDefinition _) = GlobalDef
 
 toCompositeFields ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     CompositeFields (OldName m) (Type (OldName m)) ->
     m (CompositeFields (NewName m) (Type (NewName m)))
 toCompositeFields (CompositeFields fields mExt) =
@@ -81,11 +81,13 @@ toCompositeFields (CompositeFields fields mExt) =
     where
         toField (tag, typ) = (,) <$> toTagInfoOf Tag tag <*> toType typ
 
-toTId :: MonadNaming m => TId (OldName m) -> m (TId (NewName m))
+toTId ::
+    (HasCallStack, MonadNaming m) =>
+    TId (OldName m) -> m (TId (NewName m))
 toTId = tidName %%~ opGetName Nothing TaggedNominal
 
 toTBody ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     TBody (OldName m) (Type (OldName m)) ->
     m (TBody (NewName m) (Type (NewName m)))
 toTBody (TVar tv) = opGetName Nothing TypeVar tv <&> TVar
@@ -97,21 +99,25 @@ toTBody (TInst tid params) =
     where
         f (k, v) = (,) <$> opGetName Nothing TypeVar k <*> toType v
 
-toType :: MonadNaming m => Type (OldName m) -> m (Type (NewName m))
+toType ::
+    (HasCallStack, MonadNaming m) =>
+    Type (OldName m) -> m (Type (NewName m))
 toType = tBody %%~ toTBody
 
-toScheme :: MonadNaming m => Scheme (OldName m) -> m (Scheme (NewName m))
+toScheme ::
+    (HasCallStack, MonadNaming m) =>
+    Scheme (OldName m) -> m (Scheme (NewName m))
 toScheme (Scheme tvs typ) = Scheme tvs <$> toType typ
 
 toDefinitionOutdatedType ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     DefinitionOutdatedType (OldName m) p ->
     m (DefinitionOutdatedType (NewName m) p)
 toDefinitionOutdatedType (DefinitionOutdatedType whenUsed current useCur) =
     DefinitionOutdatedType <$> toScheme whenUsed <*> toScheme current ?? useCur
 
 toBinderVarRef ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Maybe Disambiguator ->
     BinderVarRef (OldName m) o ->
     m (BinderVarRef (NewName m) o)
@@ -125,7 +131,7 @@ toBinderVarRef mDisambig (BinderVarRef nameRef form var inline) =
     ?? inline
 
 toGetVar ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     GetVar (OldName m) o ->
     m (GetVar (NewName m) o)
 toGetVar (GetParam x) = toParamRef x <&> GetParam
@@ -134,18 +140,18 @@ toGetVar (GetParamsRecord x) =
     traverse (opGetName Nothing Tag) x <&> GetParamsRecord
 
 toNodeActions ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     NodeActions (OldName m) (IM m) o ->
     m (NodeActions (NewName m) (IM m) o)
 toNodeActions = wrapInRecord toTagSelection
 
 toResRecord ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     ResRecord (OldName m) a -> m (ResRecord (NewName m) a)
 toResRecord = recordFields . traverse . _1 %%~ toTagInfoOf Tag
 
 toResBody ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (a -> m b) -> ResBody (OldName m) a -> m (ResBody (NewName m) b)
 toResBody f =
     \case
@@ -162,10 +168,14 @@ toResBody f =
     RInject  x -> riTag (toTagInfoOf Tag) x <&> RInject
     <&> (>>= traverse f)
 
-toResVal :: MonadNaming m => ResVal (OldName m) -> m (ResVal (NewName m))
+toResVal ::
+    (HasCallStack, MonadNaming m) =>
+    ResVal (OldName m) -> m (ResVal (NewName m))
 toResVal = resBody (toResBody toResVal)
 
-toValAnnotation :: MonadNaming m => ValAnnotation (OldName m) (IM m) -> m (ValAnnotation (NewName m) (IM m))
+toValAnnotation ::
+    (HasCallStack, MonadNaming m) =>
+    ValAnnotation (OldName m) (IM m) -> m (ValAnnotation (NewName m) (IM m))
 toValAnnotation (ValAnnotation evalRes typ) =
     do
         run <- opRun
@@ -174,13 +184,15 @@ toValAnnotation (ValAnnotation evalRes typ) =
             ValAnnotation
             (evalRes <&> traverse . traverse %~ (>>= run . toResVal))
 
-toAnnotation :: MonadNaming m => Annotation (OldName m) (IM m) -> m (Annotation (NewName m) (IM m))
+toAnnotation ::
+    (HasCallStack, MonadNaming m) =>
+    Annotation (OldName m) (IM m) -> m (Annotation (NewName m) (IM m))
 toAnnotation AnnotationNone = pure AnnotationNone
 toAnnotation (AnnotationType typ) = toType typ <&> AnnotationType
 toAnnotation (AnnotationVal x) = toValAnnotation x <&> AnnotationVal
 
 toPayload ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Payload (OldName m) (IM m) o a ->
     m (Payload (NewName m) (IM m) o a)
 toPayload payload@Payload{_plAnnotation, _plActions} =
@@ -190,7 +202,7 @@ toPayload payload@Payload{_plAnnotation, _plActions} =
         pure payload{_plAnnotation, _plActions}
 
 toNode ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (Tree ka (Ann (Payload (OldName m) (IM m) o p)) ->
      m (Tree kb (Ann (Payload (NewName m) (IM m) o p)))) ->
     Tree (Ann (Payload (OldName m) (IM m) o p)) ka ->
@@ -201,7 +213,7 @@ toNode toV (Ann pl v) =
     <*> toV v
 
 toLet ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Let (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (Let (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toLet let_@Let{_lName, _lVarInfo, _lBody, _lValue} =
@@ -213,7 +225,7 @@ toLet let_@Let{_lName, _lVarInfo, _lBody, _lValue} =
         pure let_{_lName, _lBody, _lValue}
 
 toBinder ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Binder (OldName m) (IM m) o)
         (Ann (Payload (OldName m) (IM m) o a)) ->
     m
@@ -223,13 +235,13 @@ toBinder (BinderLet l) = toLet l <&> BinderLet
 toBinder (BinderExpr e) = toBody e <&> BinderExpr
 
 toAddFirstParam ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     AddFirstParam (OldName m) (IM m) o ->
     m (AddFirstParam (NewName m) (IM m) o)
 toAddFirstParam = _PrependParam toTagSelection
 
 toFunction ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Function (OldName m) (IM m) o)
         (Ann (Payload (OldName m) (IM m) o a)) ->
     m
@@ -242,7 +254,7 @@ toFunction func@Function{_fParams, _fBody, _fAddFirstParam} =
     <*> toAddFirstParam _fAddFirstParam
 
 toBinderPlain ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (AssignPlain (OldName m) (IM m) o)
         (Ann (Payload (OldName m) (IM m) o a)) ->
     m
@@ -254,7 +266,7 @@ toBinderPlain AssignPlain{_apBody, _apAddFirstParam} =
     <*> toAddFirstParam _apAddFirstParam
 
 toAssignment ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Ann (Payload (OldName m) (IM m) o a))
         (Assignment (OldName m) (IM m) o) ->
     m
@@ -267,17 +279,18 @@ toAssignment =
     & toNode
 
 toLam ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Lambda (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (Lambda (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toLam = lamFunc toFunction
 
 toTagInfoOf ::
-    MonadNaming m => NameType -> TagInfo (OldName m) -> m (TagInfo (NewName m))
+    (HasCallStack, MonadNaming m) =>
+    NameType -> TagInfo (OldName m) -> m (TagInfo (NewName m))
 toTagInfoOf nameType = tagName (opGetName Nothing nameType)
 
 toTagSelection ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     TagSelection (OldName m) (IM m) o a ->
     m (TagSelection (NewName m) (IM m) o a)
 toTagSelection t =
@@ -286,7 +299,7 @@ toTagSelection t =
     \run -> t & tsOptions %~ (>>= run . (traverse . toInfo) (toTagInfoOf Tag))
 
 toTagOf ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     NameType -> Sugar.Tag (OldName m) (IM m) o ->
     m (Sugar.Tag (NewName m) (IM m) o)
 toTagOf nameType (Sugar.Tag info actions) =
@@ -295,7 +308,7 @@ toTagOf nameType (Sugar.Tag info actions) =
     <*> toTagSelection actions
 
 withTag ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     NameType -> Sugar.VarInfo ->
     Sugar.Tag (OldName m) (IM m) o ->
     CPS m (Sugar.Tag (NewName m) (IM m) o)
@@ -305,7 +318,7 @@ withTag nameType varInfo (Sugar.Tag info actions) =
     <*> liftCPS (toTagSelection actions)
 
 toAnnotatedArg ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (a -> m b) ->
     AnnotatedArg (OldName m) a ->
     m (AnnotatedArg (NewName m) b)
@@ -315,7 +328,7 @@ toAnnotatedArg expr (AnnotatedArg tag e) =
     <*> expr e
 
 toLabeledApply ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (LabeledApply (OldName m) (IM m) o)
         (Ann (Payload (OldName m) (IM m) o a)) ->
     m
@@ -330,7 +343,7 @@ toLabeledApply
     <*> traverse (toNode (Lens._Wrapped toGetVar)) _aRelayedArgs
 
 toHole ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Hole (OldName m) (IM m) o ->
     m (Hole (NewName m) (IM m) o)
 toHole hole =
@@ -340,7 +353,7 @@ toHole hole =
     SugarLens.holeTransformExprs (run . toNode toBinder) hole
 
 toFragment ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Fragment (OldName m) (IM m) o)
         (Ann (Payload (OldName m) (IM m) o a)) ->
     m
@@ -361,7 +374,7 @@ toFragment Fragment{_fExpr, _fHeal, _fOptions} =
             }
 
 toComposite ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (a -> m b) ->
     Composite (OldName m) (IM m) o a ->
     m (Composite (NewName m) (IM m) o b)
@@ -372,35 +385,35 @@ toComposite expr Composite{_cItems, _cAddItem, _cTail} =
     >>= traverse expr
 
 toCase ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (a -> m b) ->
     Case (OldName m) (IM m) o a ->
     m (Case (NewName m) (IM m) o b)
 toCase expr (Case k c) = Case <$> traverse expr k <*> toComposite expr c
 
 toInjectVal ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (InjectContent (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (InjectContent (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toInjectVal (InjectVal v) = toExpression v <&> InjectVal
 toInjectVal (InjectNullary n) = toNode (Lens._Wrapped (nullaryAddItem toTagSelection)) n <&> InjectNullary
 
 toInject ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Inject (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (Inject (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toInject (Inject t v) =
     Inject <$> toTagOf Tag t <*> toInjectVal v
 
 toElse ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Else (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (Else (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toElse (SimpleElse x) = toBody x <&> SimpleElse
 toElse (ElseIf x) = eiContent toIfElse x <&> ElseIf
 
 toIfElse ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (IfElse (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m (Tree (IfElse (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
 toIfElse (IfElse i t e) =
@@ -410,7 +423,7 @@ toIfElse (IfElse i t e) =
     <*> toNode toElse e
 
 toBody ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Tree (Body (OldName m) (IM m) o) (Ann (Payload (OldName m) (IM m) o a)) ->
     m
     (Tree (Body (NewName m) (IM m) o) (Ann (Payload (NewName m) (IM m) o a)))
@@ -442,13 +455,13 @@ funcSignature apply =
     }
 
 toExpression ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Expression (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (Expression (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toExpression = toNode toBody
 
 withParamInfo ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Sugar.VarInfo -> ParamInfo (OldName m) (IM m) o ->
     CPS m (ParamInfo (NewName m) (IM m) o)
 withParamInfo varInfo (ParamInfo tag fpActions) =
@@ -457,7 +470,7 @@ withParamInfo varInfo (ParamInfo tag fpActions) =
     <*> liftCPS ((fpAddNext . Sugar._AddNext) toTagSelection fpActions)
 
 withFuncParam ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     (Sugar.VarInfo -> a -> CPS m b) -> FuncParam (OldName m) (IM m) a ->
     CPS m (FuncParam (NewName m) (IM m) b)
 withFuncParam f (FuncParam pl varInfo info) =
@@ -467,14 +480,14 @@ withFuncParam f (FuncParam pl varInfo info) =
     <*> f varInfo info
 
 withBinderParams ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     BinderParams (OldName m) (IM m) o ->
     CPS m (BinderParams (NewName m) (IM m) o)
 withBinderParams (NullParam x) = withFuncParam (const pure) x <&> NullParam
 withBinderParams (Params xs) = traverse (withFuncParam withParamInfo) xs <&> Params
 
 toDefExpr ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     DefinitionExpression (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (DefinitionExpression (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toDefExpr (DefinitionExpression typ presMode content) =
@@ -484,7 +497,7 @@ toDefExpr (DefinitionExpression typ presMode content) =
     <*> toAssignment content
 
 toDefinitionBody ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     DefinitionBody (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (DefinitionBody (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toDefinitionBody (DefinitionBodyBuiltin bi) =
@@ -493,7 +506,7 @@ toDefinitionBody (DefinitionBodyExpression expr) =
     toDefExpr expr <&> DefinitionBodyExpression
 
 toDef ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Definition (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (Definition (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toDef def@Definition{_drName, _drBody} =
@@ -505,13 +518,13 @@ toDef def@Definition{_drName, _drBody} =
         pure def{_drName, _drBody}
 
 toPane ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Pane (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (Pane (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toPane = paneDefinition toDef
 
 toRepl ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     Repl (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (Repl (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toRepl (Repl bod varInfo res) =
@@ -521,7 +534,7 @@ toRepl (Repl bod varInfo res) =
     <*> (traverse . Lens._Just . _EvalSuccess) toResVal res
 
 toWorkArea ::
-    MonadNaming m =>
+    (HasCallStack, MonadNaming m) =>
     WorkArea (OldName m) (IM m) o (Payload (OldName m) (IM m) o a) ->
     m (WorkArea (NewName m) (IM m) o (Payload (NewName m) (IM m) o a))
 toWorkArea WorkArea { _waPanes, _waRepl, _waGlobals } =

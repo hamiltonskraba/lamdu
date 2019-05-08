@@ -145,7 +145,7 @@ instance Monad i => MonadNaming (Pass1PropagateUp i o) where
     opGetName mDisambiguator nameType p0Name =
         p1Name mDisambiguator nameType p0Name & runcps
 
-p1Anon :: Maybe UUID -> CPS (Pass1PropagateUp i o) (P1Name o)
+p1Anon :: HasCallStack => Maybe UUID -> CPS (Pass1PropagateUp i o) (P1Name o)
 p1Anon Nothing = error "Anon tag with no context"
 p1Anon (Just uuid) =
     CPS (Writer.listen <&> Lens.mapped %~ Tuple.swap . (_2 %~ f))
@@ -192,7 +192,7 @@ p1Tagged mDisambiguator nameType (P0Name prop internalName) =
             }
 
 p1Name ::
-    Maybe Disambiguator -> Walk.NameType -> P0Name o ->
+    HasCallStack => Maybe Disambiguator -> Walk.NameType -> P0Name o ->
     CPS (Pass1PropagateUp i o) (P1Name o)
 p1Name mDisambiguator nameType p0Name =
     -- NOTE: We depend on the anonTag key in the map
