@@ -113,3 +113,5 @@ In the lower-right of Lamdu's screen, you'll see that F1 brings up contextual he
 
 It shows all the key bindings currently active, which changes
 according to the current context.
+
+## This is a comment for a class
