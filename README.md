@@ -115,6 +115,6 @@ according to the current context.
 ## Contributions
 Lamdu is a free open source software project that is actively looking for contributors!
 
-To get involved, please visit our [Main Page](http://lamdu.org/) for more information, or contact us directly out gitter chat channel.
+To get involved, please visit our [Main Page](http://lamdu.org/) for more information, or contact us directly through our gitter chat channel.
 
 [![Join the chat at https://gitter.im/lamdu/lamdu](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/lamdu/lamdu?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
