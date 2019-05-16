@@ -114,4 +114,7 @@ In the lower-right of Lamdu's screen, you'll see that F1 brings up contextual he
 It shows all the key bindings currently active, which changes
 according to the current context.
 
-## This is a comment for a class
+## Contributions
+Lamdu is a free open source software project that is actively looking for contributors!
+
+To get involved, please visit our [Main Page](http://lamdu.org/) for more information, or contact us directly the Gitter chat. [![Join the chat at https://gitter.im/lamdu/lamdu](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/lamdu/lamdu?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
